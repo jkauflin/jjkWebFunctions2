@@ -69,36 +69,73 @@ public class AuthorizationCheck
             if (req.Headers.TryGetValues("x-ms-client-principal", out var headerValues))
             {
                 var headerValue = headerValues.FirstOrDefault() ?? "";
-                var decoded = Convert.FromBase64String(headerValue);
-                var jsonStr = Encoding.UTF8.GetString(decoded);
-                // Deserialize the JSON to get values into a class
-                var clientPrincipal = JsonSerializer.Deserialize<ClientPrincipal>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                log.LogInformation("x-ms-client-principal header present. Length={HeaderLength}", headerValue.Length);
 
-                // Check if the identity provider has already created the actual Claims, or if they have to be built from the Roles
-                if (clientPrincipal!.Claims == null) {
-                    if (!string.IsNullOrWhiteSpace(clientPrincipal.identityProvider)) {
-                        if (clientPrincipal.identityProvider.Equals("aad")) {
-                            // If a managed identity from Azure Active Directory (AAD), construct the claims from the user Roles
-                            var claims = new List<Claim>();
-                            claims.Add(new Claim(ClaimTypes.Name, clientPrincipal.userDetails!));
-                            foreach (string userRole in clientPrincipal.userRoles!) {
-                                claims.Add(new Claim(ClaimTypes.Role, userRole));
+                if (string.IsNullOrWhiteSpace(headerValue))
+                {
+                    log.LogWarning("x-ms-client-principal header was empty.");
+                }
+                else
+                {
+                    var decoded = Convert.FromBase64String(headerValue);
+                    var jsonStr = Encoding.UTF8.GetString(decoded);
+                    log.LogInformation("x-ms-client-principal payload: {Payload}", jsonStr);
+
+                    // Deserialize the JSON to get values into a class
+                    var clientPrincipal = JsonSerializer.Deserialize<ClientPrincipal>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    log.LogInformation(
+                        "Parsed principal: identityProvider={IdentityProvider}, userDetails={UserDetails}, userRoles={UserRoleCount}, claimsCount={ClaimsCount}",
+                        clientPrincipal?.identityProvider,
+                        clientPrincipal?.userDetails,
+                        clientPrincipal?.userRoles?.Length ?? 0,
+                        clientPrincipal?.Claims?.Count() ?? 0);
+
+                    // Check if the identity provider has already created the actual Claims, or if they have to be built from the Roles
+                    if (clientPrincipal!.Claims == null)
+                    {
+                        if (!string.IsNullOrWhiteSpace(clientPrincipal.identityProvider))
+                        {
+                            if (clientPrincipal.identityProvider.Equals("aad"))
+                            {
+                                // If a managed identity from Azure Active Directory (AAD), construct the claims from the user Roles
+                                var claims = new List<Claim>();
+                                claims.Add(new Claim(ClaimTypes.Name, clientPrincipal.userDetails!));
+                                foreach (string userRole in clientPrincipal.userRoles!)
+                                {
+                                    claims.Add(new Claim(ClaimTypes.Role, userRole));
+                                }
+                                // When using Azure Active Directory (AAD) with a ClaimsPrincipal, the authentication type is typically "Bearer" for OAuth 2.0 tokens
+                                var claimsIdentity = new ClaimsIdentity(claims, "Bearer");
+                                claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
                             }
-                            // When using Azure Active Directory (AAD) with a ClaimsPrincipal, the authentication type is typically "Bearer" for OAuth 2.0 tokens    
-                            var claimsIdentity = new ClaimsIdentity(claims, "Bearer"); 
-                            claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
                         }
                     }
-                } else {
-                    var claimsIdentity = new ClaimsIdentity(clientPrincipal.IdentityProvider, clientPrincipal.NameClaimType, clientPrincipal.RoleClaimType);
-                    claimsIdentity.AddClaims(clientPrincipal.Claims.Select(c => new Claim(c.Type!, c.Value!)));
-                    claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
-                }
+                    else
+                    {
+                        var claimsIdentity = new ClaimsIdentity(clientPrincipal.IdentityProvider, clientPrincipal.NameClaimType, clientPrincipal.RoleClaimType);
+                        claimsIdentity.AddClaims(clientPrincipal.Claims.Select(c => new Claim(c.Type!, c.Value!)));
+                        claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
+                    }
 
-                // Use the constructed ClaimsPrincipal to check if the user is authenticated, and in the authorized Role (to return a YES or NO to the caller)
-                if (claimsPrincipal.Identity!.IsAuthenticated) {
-                    userName = claimsPrincipal.Identity.Name ?? "";
-                    userAuthorized = claimsPrincipal.IsInRole(userRoleToCheck);
+                    // Use the constructed ClaimsPrincipal to check if the user is authenticated, and in the authorized Role (to return a YES or NO to the caller)
+                    if (claimsPrincipal.Identity?.IsAuthenticated == true)
+                    {
+                        userName = claimsPrincipal.Identity.Name ?? "";
+                        userAuthorized = claimsPrincipal.IsInRole(userRoleToCheck);
+                        log.LogInformation(
+                            "ClaimsPrincipal resolved. Name={UserName}, roleCheck={RoleToCheck}, isAuthorized={IsAuthorized}, roles={Roles}",
+                            userName,
+                            userRoleToCheck,
+                            userAuthorized,
+                            string.Join(",", claimsPrincipal.FindAll(ClaimTypes.Role).Select(role => role.Value)));
+                    }
+                    else
+                    {
+                        log.LogWarning(
+                            "ClaimsPrincipal was not authenticated. Authenticated={IsAuthenticated}, roleCheck={RoleToCheck}",
+                            claimsPrincipal.Identity?.IsAuthenticated ?? false,
+                            userRoleToCheck);
+                    }
                 }
             }
         } 

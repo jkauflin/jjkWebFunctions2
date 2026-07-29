@@ -606,7 +606,7 @@ namespace jjkWebFunctions2
             string userName = "";
             if (!authCheck.UserAuthorizedForRole(req, userAdminRole, out userName))
             {
-                return await CreateErrorResponse(req, HttpStatusCode.BadRequest, "Unauthorized call - User does not have the correct Admin role");
+                return await CreateErrorResponse(req, HttpStatusCode.BadRequest, $"Unauthorized call - User does not have the correct Admin role, userName = {userName}, role = {userAdminRole}");
             }
 
             //log.LogInformation($">>> User is authorized - userName: {userName}");

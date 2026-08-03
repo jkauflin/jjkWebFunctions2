@@ -11,76 +11,166 @@ Modification History
 2026-08-02 JJK  Updated to use JWT token from Authorization header instead of 
                 x-ms-client-principal header (as part of migrating Azure 
                 Function to .NET 10 isolated worker model).  Authorization check 
-                is now done by parsing the JWT token and checking for the 
-                required role in the "roles" claim (on the Azure Entra ID)
+                is now done by validating the JWT token and checking for the 
+                required role in the "roles" claim (on the Azure Entra ID).
+                The API Function is a registered application in Azure Entra ID 
+                and the roles are defined in the app registration.  
+                The client application must request an access token for the 
+                API Function and include it in the Authorization header of the 
+                request.
 ================================================================================*/
-using System.Text.Json.Serialization;
+
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Net;
-using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Microsoft.IdentityModel.Tokens;
 
 public class AuthorizationCheck
 {
     private readonly ILogger log;
-    public AuthorizationCheck(ILogger logger)
+    private readonly string? issuer;
+    private readonly string? audience;
+    private readonly ConfigurationManager<OpenIdConnectConfiguration>? openIdConfigManager;
+
+    public AuthorizationCheck(ILogger logger, IConfiguration? configuration = null)
     {
         log = logger;
+
+        var tenantId = configuration?["AUTH_TENANT_ID"] ?? Environment.GetEnvironmentVariable("AUTH_TENANT_ID");
+        audience = configuration?["AUTH_AUDIENCE"] ?? Environment.GetEnvironmentVariable("AUTH_AUDIENCE");
+        issuer = configuration?["AUTH_ISSUER"] ?? Environment.GetEnvironmentVariable("AUTH_ISSUER");
+
+        if (string.IsNullOrWhiteSpace(issuer) && !string.IsNullOrWhiteSpace(tenantId))
+        {
+            issuer = $"https://login.microsoftonline.com/{tenantId}/v2.0";
+        }
+
+        var metadataAddress = !string.IsNullOrWhiteSpace(tenantId)
+            ? $"https://login.microsoftonline.com/{tenantId}/v2.0/.well-known/openid-configuration"
+            : null;
+
+        if (!string.IsNullOrWhiteSpace(metadataAddress))
+        {
+            openIdConfigManager = new ConfigurationManager<OpenIdConnectConfiguration>(
+                metadataAddress,
+                new OpenIdConnectConfigurationRetriever(),
+                new HttpDocumentRetriever());
+        }
     }
 
-    public bool UserAuthorizedForRole(HttpRequestData req, string userRoleToCheck, out string userName)
+    public bool UserAuthorizedForRole(Microsoft.Azure.Functions.Worker.Http.HttpRequestData req, string userRoleToCheck, out string userName)
     {
-        bool userAuthorized = false;
         userName = string.Empty;
 
-        try {
-            // 1. Extract identity from bearer token (within the Authorization header of the HTTP request)
+        try
+        {
             var claimsPrincipal = ExtractPrincipal(req);
             if (claimsPrincipal == null)
             {
-                log.LogWarning("No valid Authorization header found for role check. roleCheck={RoleToCheck}", userRoleToCheck);
+                log.LogWarning("No valid bearer token was supplied for role check. ");
                 return false;
             }
 
-            // 2. Check if the user has the required role
-            userAuthorized = UserHasRole(claimsPrincipal, userRoleToCheck);
+            userName = GetUserName(claimsPrincipal);
 
-        } 
-            catch (Exception ex) {
-            log.LogWarning($"Exception in UserAuthorizedForRole, message: {ex.Message} {ex.StackTrace}");
+            var userAuthorized = claimsPrincipal.IsInRole(userRoleToCheck);
+            if (!userAuthorized)
+            {
+                log.LogWarning("User is authenticated but missing the required role. roleToCheck={RoleToCheck}, userName={UserName}",
+                    userRoleToCheck, userName);
+            }
+
+            return userAuthorized;
         }
-
-        return userAuthorized;
+        catch (Exception ex)
+        {
+            log.LogWarning(ex, "Exception in UserAuthorizedForRole. roleCheck={RoleToCheck}", userRoleToCheck);
+            return false;
+        }
     }
 
-    private ClaimsPrincipal? ExtractPrincipal(HttpRequestData req)
+    private ClaimsPrincipal? ExtractPrincipal(Microsoft.Azure.Functions.Worker.Http.HttpRequestData req)
     {
-        if (!req.Headers.TryGetValues("Authorization", out var authHeaders))
+        if (!TryGetBearerToken(req, out var token))
         {
             return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(audience) || string.IsNullOrWhiteSpace(issuer) || openIdConfigManager is null)
+        {
+            log.LogWarning("Authorization validation is not configured. Set AUTH_TENANT_ID, AUTH_AUDIENCE, and AUTH_ISSUER.");
+            return null;
+        }
+
+        try
+        {
+            var handler = new JwtSecurityTokenHandler();
+            var config = openIdConfigManager.GetConfigurationAsync().GetAwaiter().GetResult();
+
+            var validationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = issuer,
+                ValidateAudience = true,
+                ValidAudiences = new[] { audience },
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKeys = config.SigningKeys,
+                ClockSkew = TimeSpan.FromMinutes(2),
+                RoleClaimType = ClaimTypes.Role
+            };
+
+            return handler.ValidateToken(token, validationParameters, out _);
+        }
+        catch (Exception ex)
+        {
+            log.LogWarning(ex, "Bearer token validation failed.");
+            return null;
+        }
+    }
+
+    private static bool TryGetBearerToken(Microsoft.Azure.Functions.Worker.Http.HttpRequestData req, out string token)
+    {
+        token = string.Empty;
+
+        if (!req.Headers.TryGetValues("Authorization", out var authHeaders))
+        {
+            return false;
         }
 
         var bearer = authHeaders.FirstOrDefault();
-        if (bearer is null || !bearer.StartsWith("Bearer "))
+        if (string.IsNullOrWhiteSpace(bearer) || !bearer.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
         {
-            return null;
+            return false;
         }
 
-        var token = bearer.Substring("Bearer ".Length);
-
-        var handler = new JwtSecurityTokenHandler();
-        var jwt = handler.ReadJwtToken(token);
-
-        var identity = new ClaimsIdentity(jwt.Claims, "jwt");
-        return new ClaimsPrincipal(identity);
+        token = bearer["Bearer ".Length..];
+        return !string.IsNullOrWhiteSpace(token);
     }
 
-    private bool UserHasRole(ClaimsPrincipal principal, string requiredRole)
+    private static string GetUserName(ClaimsPrincipal principal)
+    {
+        return principal.FindFirst("preferred_username")?.Value
+            ?? principal.FindFirst(ClaimTypes.Name)?.Value
+            ?? principal.FindFirst(ClaimTypes.Upn)?.Value
+            ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? string.Empty;
+    }
+
+    /*
+    private static bool UserHasRole(ClaimsPrincipal principal, string requiredRole)
     {
         return principal.Claims
             .Where(c => c.Type == "roles")
             .Any(c => string.Equals(c.Value, requiredRole, StringComparison.OrdinalIgnoreCase));
+        
+        return principal.Claims
+            .Where(c => c.Type == ClaimTypes.Role || c.Type == "roles" || c.Type.EndsWith("/role"))
+            .Any(c => string.Equals(c.Value, requiredRole, StringComparison.OrdinalIgnoreCase));
     }
+    */
 }

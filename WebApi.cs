@@ -22,6 +22,14 @@ Modification History
 2026-07-28 JJK  Modified to use Newtonsoft.Json.Serialization with camelCase 
                 for JSON serialization to match the previous PHP API output
                 (and have the first letter of the JSON property names be lower case)
+2026-08-03 JJK  Modified the AuthorizationCheck class to use JWT token from 
+                Authorization header instead of x-ms-client-principal header 
+                (as part of migrating Azure Function to .NET 10 isolated worker model).  
+                Authorization check is now done by validating the JWT token 
+                and checking for the required role in the "roles" claim 
+                (on the Azure Entra ID).  The API Function is a registered 
+                application in Azure Entra ID and the roles are defined in the 
+                app registration.  
 ================================================================================*/
 using System.Net;
 using System.Globalization;
@@ -68,9 +76,7 @@ namespace jjkWebFunctions2
             log = logger;
             config = configuration;
             apiCosmosDbConnStr = config["API_COSMOS_DB_CONN_STR"];
-
-            authCheck = new AuthorizationCheck(log);
-            //userAdminRole = "jjkadmin";   // add to config ???
+            authCheck = new AuthorizationCheck(log, configuration);
             userAdminRole = "admin.role";   // add to config ???
             dbCommon = new DbCommon(log, config);
         }
@@ -606,7 +612,7 @@ namespace jjkWebFunctions2
             string userName = string.Empty;
             if (!authCheck.UserAuthorizedForRole(req, userAdminRole, out userName))
             {
-                return await CreateErrorResponse(req, HttpStatusCode.Unauthorized, $"Unauthorized call - User does not have the correct Adminrole, userName = {userName}");
+                return await CreateErrorResponse(req, HttpStatusCode.Unauthorized, $"Unauthorized call - User does not have the correct Admin role, userName = {userName}");
             }
             //log.LogInformation($">>> User is authorized - userName: {userName}");
 

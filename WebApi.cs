@@ -77,7 +77,7 @@ namespace jjkWebFunctions2
             config = configuration;
             apiCosmosDbConnStr = config["API_COSMOS_DB_CONN_STR"];
             authCheck = new AuthorizationCheck(log, configuration);
-            userAdminRole = "admin.role";   // add to config ???
+            userAdminRole = "jjkadmin";   // add to config ???
             dbCommon = new DbCommon(log, config);
         }
 

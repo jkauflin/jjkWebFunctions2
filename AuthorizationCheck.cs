@@ -80,8 +80,7 @@ public class AuthorizationCheck
             var userAuthorized = claimsPrincipal.IsInRole(userRoleToCheck);
             if (!userAuthorized)
             {
-                log.LogWarning("User is authenticated but missing the required role. roleToCheck={RoleToCheck}, userName={UserName}",
-                    userRoleToCheck, userName);
+                log.LogWarning($"User is authenticated but missing the required role. roleToCheck={userRoleToCheck}, userName={userName}");
             }
 
             return userAuthorized;

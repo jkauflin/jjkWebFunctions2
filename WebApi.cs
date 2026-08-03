@@ -70,8 +70,8 @@ namespace jjkWebFunctions2
             apiCosmosDbConnStr = config["API_COSMOS_DB_CONN_STR"];
 
             authCheck = new AuthorizationCheck(log);
-            userAdminRole = "jjkadmin";   // add to config ???
-
+            //userAdminRole = "jjkadmin";   // add to config ???
+            userAdminRole = "admin.role";   // add to config ???
             dbCommon = new DbCommon(log, config);
         }
 
@@ -440,7 +440,7 @@ namespace jjkWebFunctions2
             string userName = "";
             if (!authCheck.UserAuthorizedForRole(req, userAdminRole, out userName))
             {
-                return await CreateErrorResponse(req, HttpStatusCode.BadRequest, "Unauthorized call - User does not have the correct Admin role");
+                return await CreateErrorResponse(req, HttpStatusCode.Unauthorized, "Unauthorized call - User does not have the correct Admin role");
             }
 
             //log.LogInformation($">>> User is authorized - userName: {userName}");
@@ -557,7 +557,7 @@ namespace jjkWebFunctions2
             string userName = "";
             if (!authCheck.UserAuthorizedForRole(req, userAdminRole, out userName))
             {
-                return await CreateErrorResponse(req, HttpStatusCode.BadRequest, "Unauthorized call - User does not have the correct Admin role");
+                return await CreateErrorResponse(req, HttpStatusCode.Unauthorized, "Unauthorized call - User does not have the correct Admin role");
             }
 
             //log.LogInformation($">>> User is authorized - userName: {userName}");
@@ -603,12 +603,11 @@ namespace jjkWebFunctions2
         public async Task<HttpResponseData> GetGenvConfig(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequestData req)
         {
-            string userName = "";
+            string userName = string.Empty;
             if (!authCheck.UserAuthorizedForRole(req, userAdminRole, out userName))
             {
-                return await CreateErrorResponse(req, HttpStatusCode.BadRequest, $"Unauthorized call - User does not have the correct Admin role, userName = {userName}, role = {userAdminRole}");
+                return await CreateErrorResponse(req, HttpStatusCode.Unauthorized, $"Unauthorized call - User does not have the correct Adminrole, userName = {userName}");
             }
-
             //log.LogInformation($">>> User is authorized - userName: {userName}");
 
             //------------------------------------------------------------------------------------------------------------------
@@ -687,7 +686,7 @@ namespace jjkWebFunctions2
             string userName = "";
             if (!authCheck.UserAuthorizedForRole(req, userAdminRole, out userName))
             {
-                return await CreateErrorResponse(req, HttpStatusCode.BadRequest, "Unauthorized call - User does not have the correct Admin role");
+                return await CreateErrorResponse(req, HttpStatusCode.Unauthorized, "Unauthorized call - User does not have the correct Admin role");
             }
 
             //log.LogInformation($">>> User is authorized - userName: {userName}");
@@ -736,7 +735,7 @@ namespace jjkWebFunctions2
             string userName = "";
             if (!authCheck.UserAuthorizedForRole(req, userAdminRole, out userName))
             {
-                return await CreateErrorResponse(req, HttpStatusCode.BadRequest, "Unauthorized call - User does not have the correct Admin role");
+                return await CreateErrorResponse(req, HttpStatusCode.Unauthorized, "Unauthorized call - User does not have the correct Admin role");
             }
 
             string databaseId = "jjkdb1";
@@ -812,7 +811,7 @@ namespace jjkWebFunctions2
             string userName = "";
             if (!authCheck.UserAuthorizedForRole(req, userAdminRole, out userName))
             {
-                return await CreateErrorResponse(req, HttpStatusCode.BadRequest, "Unauthorized call - User does not have the correct Admin role");
+                return await CreateErrorResponse(req, HttpStatusCode.Unauthorized, "Unauthorized call - User does not have the correct Admin role");
             }
 
             //log.LogInformation($">>> User is authorized - userName: {userName}");
@@ -886,7 +885,7 @@ namespace jjkWebFunctions2
             string userName = "";
             if (!authCheck.UserAuthorizedForRole(req, userAdminRole, out userName))
             {
-                return await CreateErrorResponse(req, HttpStatusCode.BadRequest, "Unauthorized call - User does not have the correct Admin role");
+                return await CreateErrorResponse(req, HttpStatusCode.Unauthorized, "Unauthorized call - User does not have the correct Admin role");
             }
 
             //log.LogInformation($">>> User is authorized - userName: {userName}");
@@ -1098,7 +1097,7 @@ namespace jjkWebFunctions2
             string userName = "";
             if (!authCheck.UserAuthorizedForRole(req, userAdminRole, out userName))
             {
-                return await CreateErrorResponse(req, HttpStatusCode.BadRequest, "Unauthorized call - User does not have the correct Admin role");
+                return await CreateErrorResponse(req, HttpStatusCode.Unauthorized, "Unauthorized call - User does not have the correct Admin role");
             }
 
             //log.LogInformation($">>> User is authorized - userName: {userName}");

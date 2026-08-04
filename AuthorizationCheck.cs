@@ -17,7 +17,7 @@ Modification History
                 and the roles are defined in the app registration.  
                 The client application must request an access token for the 
                 API Function and include it in the Authorization header of the 
-                request.
+                request (not SWA Easy Auth, but a real access token from Azure Entra ID).
 ================================================================================*/
 
 using System.IdentityModel.Tokens.Jwt;
@@ -87,7 +87,7 @@ public class AuthorizationCheck
         }
         catch (Exception ex)
         {
-            log.LogWarning(ex, "Exception in UserAuthorizedForRole. roleCheck={RoleToCheck}", userRoleToCheck);
+            log.LogWarning(ex, "Exception in UserAuthorizedForRole");
             return false;
         }
     }
@@ -159,17 +159,4 @@ public class AuthorizationCheck
             ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
             ?? string.Empty;
     }
-
-    /*
-    private static bool UserHasRole(ClaimsPrincipal principal, string requiredRole)
-    {
-        return principal.Claims
-            .Where(c => c.Type == "roles")
-            .Any(c => string.Equals(c.Value, requiredRole, StringComparison.OrdinalIgnoreCase));
-        
-        return principal.Claims
-            .Where(c => c.Type == ClaimTypes.Role || c.Type == "roles" || c.Type.EndsWith("/role"))
-            .Any(c => string.Equals(c.Value, requiredRole, StringComparison.OrdinalIgnoreCase));
-    }
-    */
 }

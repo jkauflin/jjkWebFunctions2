@@ -30,6 +30,9 @@ Modification History
                 (on the Azure Entra ID).  The API Function is a registered 
                 application in Azure Entra ID and the roles are defined in the 
                 app registration.  
+                The client application must request an access token for the 
+                API Function and include it in the Authorization header of the 
+                request (not SWA Easy Auth, but a real access token from Azure Entra ID).
 ================================================================================*/
 using System.Net;
 using System.Globalization;

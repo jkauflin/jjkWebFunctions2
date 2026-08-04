@@ -22,6 +22,7 @@ Modification History
 
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using Microsoft.Azure.Cosmos.Linq;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -77,6 +78,11 @@ public class AuthorizationCheck
 
             userName = GetUserName(claimsPrincipal);
 
+            var claimValues = claimsPrincipal.Claims
+                .Select(c => $"{c.Type}={c.Value}")
+                .ToArray();
+            log.LogWarning(">>> claimsPrincipal has {ClaimCount} claims: {Claims}", claimValues.Length, string.Join("; ", claimValues));
+
             var userAuthorized = claimsPrincipal.IsInRole(userRoleToCheck);
             if (!userAuthorized)
             {
@@ -109,6 +115,7 @@ public class AuthorizationCheck
         {
             var handler = new JwtSecurityTokenHandler();
             handler.MapInboundClaims = false; // don't silently rewrite claim names — read raw JWT claim names
+            handler.InboundClaimTypeMap.Clear(); // don't map claim names to Microsoft-specific names
 
             var config = openIdConfigManager.GetConfigurationAsync().GetAwaiter().GetResult();
             var validationParameters = new TokenValidationParameters

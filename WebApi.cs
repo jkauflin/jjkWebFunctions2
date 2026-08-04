@@ -613,6 +613,7 @@ namespace jjkWebFunctions2
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequestData req)
         {
             string userName = string.Empty;
+            log.LogWarning(">>> in GetGenvConfig Checking user authorization for role: {UserAdminRole}", userAdminRole);
             if (!authCheck.UserAuthorizedForRole(req, userAdminRole, out userName))
             {
                 return await CreateErrorResponse(req, HttpStatusCode.Unauthorized, $"Unauthorized call - User does not have the correct Admin role, userName = {userName}");

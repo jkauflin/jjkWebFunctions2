@@ -108,8 +108,9 @@ public class AuthorizationCheck
         try
         {
             var handler = new JwtSecurityTokenHandler();
-            var config = openIdConfigManager.GetConfigurationAsync().GetAwaiter().GetResult();
+            handler.MapInboundClaims = false; // don't silently rewrite claim names — read raw JWT claim names
 
+            var config = openIdConfigManager.GetConfigurationAsync().GetAwaiter().GetResult();
             var validationParameters = new TokenValidationParameters
             {
                 ValidateIssuer = true,
@@ -120,7 +121,8 @@ public class AuthorizationCheck
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKeys = config.SigningKeys,
                 ClockSkew = TimeSpan.FromMinutes(2),
-                RoleClaimType = ClaimTypes.Role
+                //RoleClaimType = ClaimTypes.Role
+                RoleClaimType = "roles"   // matches the raw Azure AD v2 claim name now that mapping is off
             };
 
             return handler.ValidateToken(token, validationParameters, out _);

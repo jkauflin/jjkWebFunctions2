@@ -17,10 +17,10 @@ namespace jjkWebFunctions2.Model
     "pvWatts": "1.329",
 */
         public string id { get; set; }
-        public int PointDay { get; set; }
+        public int PointDay { get; set; }               // YYYYMMDD
         public string? PointDateTime { get; set; }
-        public int PointYearMonth { get; set; }
-        public int PointDayTime { get; set; }
+        public int PointYearMonth { get; set; }         // YYYYMM
+        public int PointDayTime { get; set; }           // YYHHMMSS
         public float pvVolts { get; set; }
         public float pvAmps { get; set; }
         public float pvWatts { get; set; }

@@ -78,12 +78,10 @@ public class AuthorizationCheck
 
             userName = GetUserName(claimsPrincipal);
 
-            /*
             var claimValues = claimsPrincipal.Claims
                 .Select(c => $"{c.Type}={c.Value}")
                 .ToArray();
             log.LogWarning(">>> claimsPrincipal has {ClaimCount} claims: {Claims}", claimValues.Length, string.Join("; ", claimValues));
-            */
             
             var userAuthorized = claimsPrincipal.IsInRole(userRoleToCheck);
             if (!userAuthorized)

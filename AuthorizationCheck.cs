@@ -141,22 +141,43 @@ public class AuthorizationCheck
         }
     }
 
-    private static bool TryGetBearerToken(Microsoft.Azure.Functions.Worker.Http.HttpRequestData req, out string token)
+    //private static bool TryGetBearerToken(Microsoft.Azure.Functions.Worker.Http.HttpRequestData req, out string token)
+    private bool TryGetBearerToken(Microsoft.Azure.Functions.Worker.Http.HttpRequestData req, out string token)
     {
         token = string.Empty;
 
         if (!req.Headers.TryGetValues("Authorization", out var authHeaders))
         {
+            log.LogWarning("Authorization header not found.");
+
+            foreach (var h in req.Headers)
+            {
+                log.LogWarning("{Name} = {Value}",
+                    h.Key,
+                    string.Join(",", h.Value));
+            }
+
             return false;
         }
 
+        /*
+        if (!req.Headers.TryGetValues("Authorization", out var authHeaders))
+        {
+            return false;
+        }
+        */
+
         var bearer = authHeaders.FirstOrDefault();
+        log.LogWarning("Authorization header = {Header}", bearer);
         if (string.IsNullOrWhiteSpace(bearer) || !bearer.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
         token = bearer["Bearer ".Length..];
+        log.LogWarning("Bearer starts with: {Token}",
+            bearer.Length > 40 ? bearer.Substring(0,40) : bearer);
+            
         return !string.IsNullOrWhiteSpace(token);
     }
 
